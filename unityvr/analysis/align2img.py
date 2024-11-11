@@ -9,10 +9,10 @@ from unityvr.preproc import logproc
 from unityvr.analysis import utils as autils
 import scipy as sp
 
-def findImgFrameTimes(uvrDat,imgMetadat,diffVal=3, pdAlign=False, pdThresh=0.1):
+def findImgFrameTimes(uvrDat,imgMetadat,diffVal=3, pdAlign=False, pdThresh=0.1, noFrameDropCorrection=True):
     #find the dropped frames and use those to clean up nidDf
     if pdAlign:
-        uvrDat.nidDf = alignWithPdSignal(uvrDat.nidDf, threshold=pdThresh)
+        uvrDat.nidDf = alignWithPdSignal(uvrDat.nidDf, threshold=pdThresh, noFrameDropCorrection=noFrameDropCorrection)
     else:
         uvrDat.nidDf['frameToAlign'] = uvrDat.nidDf['frame'].copy()
 
@@ -276,13 +276,13 @@ def find_upticks(signal, smoothing=3):
     positive_zero_crossings = np.where((sign_changes[:-1] < 0) & (sign_changes[1:] > 0))[0]
     return positive_zero_crossings
 
-def alignWithPdSignal(nidDf, threshold=0.1):
-    nidDf = nidDf.dropna().reset_index(drop=True).copy()
+def alignWithPdSignal(nidDf, threshold=0.1, noFrameDropCorrection=True):
+    nidDf = nidDf.dropna().reset_index(drop=True).copy() #remove frames where no photodiode signal was logged
     dips = np.where(np.diff((nidDf['pdsig'].values) > threshold) != 0)[0]
     NcorrectionFrames = nidDf['frame'].values[dips[0]]-nidDf['frame'].values[0]+1 #the signal value for frame x will be dumped by frame x+1 (that's where +1 comes from)
     print('Difference between first unity frame which dumps a high photodiode value and the first unity frame that starts logging photodiode values:',NcorrectionFrames)
     nidDf['frameToAlign'] = np.clip(nidDf['frame'].copy() - NcorrectionFrames, nidDf['frame'].min(), nidDf['frame'].max())
-    validFrames = list(np.unique(nidDf['frameToAlign'].values[dips]))
+    validFrames = list(np.unique(nidDf['frameToAlign'].values)) if noFrameDropCorrection else list(np.unique(nidDf['frameToAlign'].values[dips]))
     for f in np.arange(1,len(nidDf)):
         if nidDf.loc[f,'frameToAlign'] in validFrames:
             pass
