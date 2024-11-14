@@ -36,10 +36,11 @@ def position(uvrDat, derive = True, rotate_by = None, filter_date = '2021-09-08'
         posDf['x'], posDf['y'] = rotation_deg(posDf['x'],posDf['y'],rotate_by)
         if 'dx' in posDf:
             posDf['dx'], posDf['dy'] = rotation_deg(posDf['dx'],posDf['dy'],rotate_by)
-            posDf['dxattempt'], posDf['dyattempt'] = rotation_deg(posDf['dxattempt'],posDf['dyattempt'],rotate_by)
         else:
             posDf['dx'] = np.gradient(posDf['x'])
             posDf['dy'] = np.gradient(posDf['y'])
+        if 'dxattempt' in posDf:
+            posDf['dxattempt'], posDf['dyattempt'] = rotation_deg(posDf['dxattempt'],posDf['dyattempt'],rotate_by)
         posDf['angle'] = (posDf['angle']+rotate_by)%360
         uvrDat.metadata['rotated_by'] = (uvrDat.metadata['rotated_by']+rotate_by)%360 if ('rotated_by' in uvrDat.metadata) else (rotate_by%360)
 
