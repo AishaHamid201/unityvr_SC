@@ -81,6 +81,7 @@ class unityVRexperiment:
         return savepath
 
 # extract all dataframes from log file and save to disk
+'''  # Not sure why this exists, will be deprecated
 def convertJsonToPandas(dirName,fileName,saveDir, computePDtrace):
 
     dat = openUnityLog(dirName, fileName)
@@ -118,6 +119,7 @@ def convertJsonToPandas(dirName,fileName,saveDir, computePDtrace):
     del vidDf 
 
     return savepath
+'''
 
 # constructor for unityVRexperiment
 def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,**kwargs):

@@ -49,7 +49,7 @@ def position(uvrDat, derive = True, rotate_by = None, filter_date = '2021-09-08'
 
     if derive:
         posDf = posDerive(posDf)
-    if computeVelocities:
+    if computeVel:
         posDf = computeVelocities(posDf,**computeVelocitiesKwargs)
         
         #get flight and clipped from flightDf dataframe
@@ -146,8 +146,10 @@ def computeVelocities(posDf, convf = 10, window=7, order=3):
     posDf['vT'] = np.hypot(np.gradient(posDf.x.values*convf), np.gradient(posDf.y.values*convf))*(1/posDf.dt)
     posDf['vR'] = np.gradient(np.unwrap(posDf.angle.values))
 
-    posDf['vT_filt'] = savgol_filter(posDf.vT, window, order)
-    posDf['vR_filt'] = savgol_filter(posDf.vR, window, order)
+    #TODO: REVISIT FILTERING AFTER INTERPOLATION
+
+    #posDf['vT_filt'] = savgol_filter(posDf.vT, window, order)
+    #posDf['vR_filt'] = savgol_filter(posDf.vR, window, order)
     return posDf
 
 def getTimeDf(uvrDat, trialDir, posDf = None, imaging = False, rate = 9.5509):
