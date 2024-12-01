@@ -9,10 +9,10 @@ from unityvr.preproc import logproc
 from unityvr.analysis import utils as autils
 import scipy as sp
 
-def findImgFrameTimes(uvrDat,imgMetadat,diffVal=3, pdAlign=False, pdThresh=0.1, noFrameDropCorrection=True):
+def findImgFrameTimes(uvrDat,imgMetadat,diffVal=3, pdAlign=False, **kwargs):
     #find the dropped frames and use those to clean up nidDf
     if pdAlign:
-        uvrDat.nidDf = alignWithPdSignal(uvrDat.nidDf, threshold=pdThresh, noFrameDropCorrection=noFrameDropCorrection)
+        uvrDat.nidDf, _ = alignWithPdSignal(uvrDat.nidDf, **kwargs)
     else:
         uvrDat.nidDf['frameToAlign'] = uvrDat.nidDf['frame'].copy()
 
@@ -26,7 +26,7 @@ def findImgFrameTimes(uvrDat,imgMetadat,diffVal=3, pdAlign=False, pdThresh=0.1, 
 
     #take only every x frame as start of volume
     volFrame = imgFrame[0::imgMetadat['fpv']]
-    volFramePos = np.array([np.where(volFrame[i] == uvrDat.posDf.frame.values)[0][0] for i in range(len(volFrame))])
+    volFramePos = np.array([np.where(volFrame[i] == uvrDat.posDf.frame.values)[0][0] for i in range(len(volFrame)) if volFrame[i] in uvrDat.posDf.frame.values])
     #volFramePos = np.where(np.in1d(uvrDat.posDf.frame.values,volFrame, ))[0]
 
     return imgInd, volFramePos
@@ -104,7 +104,11 @@ def generateUnityExpDf(imgVolumeTimes, uvrDat, imgMetadat, suppressDepugPlot = F
           unityDf = getattr(uvrDat,unityDfstr)
           if (frameStr in unityDf):
                if len(unityDf[frameStr].unique())==len(unityDf[frameStr]):
-                    volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame))])
+                    volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame)) if volFrame[i] in unityDf.frame.values])
+                    # try: volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame))])
+                    # except IndexError: 
+                    #     volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0]
+                    #     print('errored out in :', unityDfstr) #in 1d gives true when the element of the 1st array is in the second array
                     #volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0] #in 1d gives true when the element of the 1st array is in the second array
                     framesinPos = np.where(np.in1d(uvrDat.posDf.frame.values[volFramePos], unityDf.frame.values[volFrameId]))[0] #which volume start frames of current Df are in posDf
                     unityDfsDS[i] = unityDf.iloc[volFrameId,:].copy()
@@ -276,16 +280,46 @@ def find_upticks(signal, smoothing=3):
     positive_zero_crossings = np.where((sign_changes[:-1] < 0) & (sign_changes[1:] > 0))[0]
     return positive_zero_crossings
 
-def alignWithPdSignal(nidDf, threshold=0.1, noFrameDropCorrection=True):
-    nidDf = nidDf.dropna().reset_index(drop=True).copy() #remove frames where no photodiode signal was logged
-    dips = np.where(np.diff((nidDf['pdsig'].values) > threshold) != 0)[0]
-    NcorrectionFrames = nidDf['frame'].values[dips[0]]-nidDf['frame'].values[0]+1 #the signal value for frame x will be dumped by frame x+1 (that's where +1 comes from)
-    print('Difference between first unity frame which dumps a high photodiode value and the first unity frame that starts logging photodiode values:',NcorrectionFrames)
-    nidDf['frameToAlign'] = np.clip(nidDf['frame'].copy() - NcorrectionFrames, nidDf['frame'].min(), nidDf['frame'].max())
-    validFrames = list(np.unique(nidDf['frameToAlign'].values)) if noFrameDropCorrection else list(np.unique(nidDf['frameToAlign'].values[dips]))
-    for f in np.arange(1,len(nidDf)):
-        if nidDf.loc[f,'frameToAlign'] in validFrames:
-            pass
-        else:
-            nidDf.loc[f,'frameToAlign'] = nidDf.loc[f-1,'frameToAlign']
-    return nidDf
+# def alignWithPdSignal(nidDf, threshold=0.1, noFrameDropCorrection=True):
+#     nidDf = nidDf.dropna().reset_index(drop=True).copy() #remove frames where no photodiode signal was logged
+#     dips = np.where(np.diff((nidDf['pdsig'].values) > threshold) != 0)[0]
+#     NcorrectionFrames = nidDf['frame'].values[dips[0]]-nidDf['frame'].values[0]+1 #the signal value for frame x will be dumped by frame x+1 (that's where +1 comes from)
+#     print('Difference between first unity frame which dumps a high photodiode value and the first unity frame that starts logging photodiode values:',NcorrectionFrames)
+#     nidDf['frameToAlign'] = np.clip(nidDf['frame'].copy() - NcorrectionFrames, nidDf['frame'].min(), nidDf['frame'].max())
+#     validFrames = list(np.unique(nidDf['frameToAlign'].values)) if noFrameDropCorrection else list(np.unique(nidDf['frameToAlign'].values[dips]))
+#     for f in np.arange(1,len(nidDf)):
+#         if nidDf.loc[f,'frameToAlign'] in validFrames:
+#             pass
+#         else:
+#             nidDf.loc[f,'frameToAlign'] = nidDf.loc[f-1,'frameToAlign']
+#     return nidDf
+
+def alignWithPdSignal(nidDf, pdThresh=0.1, noFrameDropCorrection=True, supressPDAlignmentPlot = True, lims=[0,100]):
+    # Drop NaNs and reset index for cleaner processing
+    nidDf = nidDf.dropna(subset=['pdsig']).reset_index(drop=True)
+    
+    # Find indices where pdsig crosses the threshold in either direction
+    dips = np.where(np.diff(nidDf['pdsig'] > pdThresh) != 0)[0]
+    
+    # Calculate frame correction based on the first crossing point
+    NcorrectionFrames = nidDf['frame'].iloc[dips[0]] - nidDf['frame'].iloc[0] + 1
+    print('Difference between first unity frame that starts logging photodiode values and first high photodiode frame:', NcorrectionFrames)
+    
+    # Align frames and apply the correction, clamping within frame range
+    nidDf['frameToAlign'] = np.clip(nidDf['frame'] - NcorrectionFrames, nidDf['frame'].min(), nidDf['frame'].max())
+    
+    # Define valid frames depending on the frame drop correction setting
+    validFrames = (np.unique(nidDf['frameToAlign']) if noFrameDropCorrection 
+                   else np.unique(nidDf['frameToAlign'].iloc[dips]))
+    
+    # Adjust frame alignment with forward fill for invalid frames
+    nidDf['frameToAlign'] = nidDf['frameToAlign'].where(nidDf['frameToAlign'].isin(validFrames)).ffill()
+
+    if not supressPDAlignmentPlot:
+        _, ax = plt.subplots(figsize=(3, 1))
+        ax.plot(nidDf['pdsig'].values, label='Photodiode Signal')
+        ax.plot(dips, nidDf['pdsig'].values[dips], 'ko')
+        ax.set_xlim(lims[0], lims[1])
+        vutils.myAxisTheme(ax)
+    
+    return nidDf, dips

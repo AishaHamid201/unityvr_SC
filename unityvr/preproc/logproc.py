@@ -17,6 +17,7 @@ objDfCols = ['name','collider','px','py','pz','rx','ry','rz','sx','sy','sz']
 posDfCols = ['frame','time','x','y','angle']
 ftDfCols = ['frame','ficTracTReadMs','ficTracTWriteMs','dx','dy','dz']
 dtDfCols = ['frame','time','dt']
+tempDfCols = ['frame','time','temperature']
 nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
@@ -190,8 +191,8 @@ def parseHeader(notes, headerwords, metadat):
 
 
 def makeMetaDict(dat, fileName):
-    headerwords = ["expid", "experiment", "genotype","flyid","sex","notes","\n"]
-    metadat = ['testExp', 'test experiment', 'testGenotype', 'NA', 'NA', "NA"]
+    headerwords = ["expid", "experiment", "genotype","flyid","sex","notes","temperature","\n"]
+    metadat = ['testExp', 'test experiment', 'testGenotype', 'NA', 'NA', "NA", "NA"]
 
     if 'headerNotes' in dat[0].keys():
         headerNotes = dat[0]['headerNotes']
@@ -221,6 +222,7 @@ def makeMetaDict(dat, fileName):
         'ballRad': ballRad,
         'setFrameRate': setFrameRate,
         'notes': metadat[5],
+        'temperature': metadat[6],
         'angle_convention':"right-handed"
     }
 
@@ -404,6 +406,25 @@ def vidDfFromLog(dat):
         return pd.concat(entries,ignore_index = True)
     else:
         return pd.DataFrame()
+    
+
+def tempDfFromLog(dat):
+    # get static image presentations and times
+    matching = [s for s in dat if "temperature" in s]
+    if len(matching) == 0: return pd.DataFrame()
+
+    entries = [None]*len(matching)
+    for entry, match in enumerate(matching):
+        framedat = {'frame': match['frame'],
+                    'time': match['timeSecs'],
+                    'temperature': match['temperature']
+                    }
+        entries[entry] = pd.Series(framedat).to_frame().T
+
+    if len(entries) > 0:
+        return pd.concat(entries,ignore_index = True)
+    else:
+        return pd.DataFrame()
 
 
 def ftTrajDfFromLog(directory, filename):
@@ -418,6 +439,7 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     posDf = pd.DataFrame(columns=posDfCols)
     ftDf = pd.DataFrame(columns=ftDfCols)
     dtDf = pd.DataFrame(columns=dtDfCols)
+    tempDf = pd.DataFrame(columns=tempDfCols)
     if computePDtrace:
         pdDf = pd.DataFrame(columns = ['frame','time','pdsig', 'imgfsig'])
     else:
@@ -426,6 +448,9 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     posDf = posDfFromLog(dat,**posDfKeyWargs)
     ftDf = ftDfFromLog(dat)
     dtDf = dtDfFromLog(dat)
+    
+    try: tempDf = tempDfFromLog(dat)
+    except: print("No temperature data was recorded.")
 
     try: pdDf = pdDfFromLog(dat, computePDtrace)
     except: print("No analog input data was recorded.")
@@ -440,11 +465,14 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     else:
         print("No fictrac signal was recorded.")
 
-    if len(dtDf) > 0: posDf = pd.merge(dtDf, posDf, on="frame", how='outer').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
+    if len(dtDf) > 0: 
+        posDf = pd.merge(dtDf, posDf, on="frame", how='outer').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
 
     if len(pdDf) > 0 and len(dtDf) > 0:
 
         nidDf = pd.merge(dtDf, pdDf, on="frame", how='left').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
+        if len(tempDf) > 0:
+            nidDf = pd.merge(nidDf, tempDf, on="frame", how='outer').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
         if computePDtrace:
             nidDf["pdFilt"]  = nidDf.pdsig.values
             nidDf.pdFilt.values[np.isfinite(nidDf.pdsig.values)] = medfilt(nidDf.pdsig.values[np.isfinite(nidDf.pdsig.values)])
