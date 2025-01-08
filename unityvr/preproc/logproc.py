@@ -21,6 +21,7 @@ tempDfCols = ['frame','time','temperature']
 nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
+attmptDfCols = ['frame','time','xattempt','yattempt','zattempt']
 # Data class definition
 
 @dataclass
@@ -38,6 +39,7 @@ class unityVRexperiment:
     nidDf: pd.DataFrame = pd.DataFrame(columns=nidDfCols)
     texDf: pd.DataFrame = pd.DataFrame(columns=texDfCols)
     vidDf: pd.DataFrame = pd.DataFrame(columns=vidDfCols)
+    attmptDf: pd.DataFrame = pd.DataFrame(columns=attmptDfCols)
     shapeDf: pd.DataFrame = pd.DataFrame()
     timeDf: pd.DataFrame = pd.DataFrame()
     flightDf: pd.DataFrame = pd.DataFrame()
@@ -75,6 +77,7 @@ class unityVRexperiment:
         self.nidDf.to_csv(sep.join([savepath,'nidDf.csv']))
         self.texDf.to_csv(sep.join([savepath,'texDf.csv']))
         self.vidDf.to_csv(sep.join([savepath,'vidDf.csv']))
+        self.attmptDf.to_csv(sep.join([savepath,'attmptDf.csv']))
         self.shapeDf.to_csv(sep.join([savepath,'shapeDf.csv']))
         self.timeDf.to_csv(sep.join([savepath,'timeDf.csv']))
         self.flightDf.to_csv(sep.join([savepath,'flightDf.csv']))
@@ -132,8 +135,9 @@ def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,**kwargs):
     posDf, ftDf, nidDf = timeseriesDfFromLog(dat, computePDtrace, **kwargs)
     texDf = texDfFromLog(dat)
     vidDf = vidDfFromLog(dat)
+    attmptDf = attmptDfFromLog(dat)
 
-    uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,objDf=objDf,texDf=texDf, vidDf=vidDf)
+    uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,objDf=objDf,texDf=texDf, vidDf=vidDf, attmptDf=attmptDf)
 
     return uvrexperiment
 
@@ -157,6 +161,11 @@ def loadUVRData(savepath):
         vidDf = pd.DataFrame()
         #No static images were displayed, fill with empty DataFrame
 
+    try: attmptDf = pd.read_csv(sep.join([savepath,'attmptDf.csv'])).drop(columns=['Unnamed: 0'])
+    except FileNotFoundError:
+        attmptDf = pd.DataFrame()
+        #no deviation between fictrac and unity
+
     try: shapeDf = pd.read_csv(sep.join([savepath,'shapeDf.csv'])).drop(columns=['Unnamed: 0'])
     except FileNotFoundError:
         shapeDf = pd.DataFrame()
@@ -178,7 +187,7 @@ def loadUVRData(savepath):
         #Nidaq dataframe may not have been extracted from the raw data due to memory/time constraints
 
     uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,
-                                      objDf=objDf,texDf=texDf,shapeDf=shapeDf,timeDf=timeDf, vidDf=vidDf, flightDf=flightDf)
+                                      objDf=objDf,texDf=texDf,shapeDf=shapeDf,timeDf=timeDf, vidDf=vidDf, flightDf=flightDf, attmptDf=attmptDf)
 
     return uvrexperiment
 
@@ -314,6 +323,24 @@ def ftDfFromLog(dat):
                         'dx': match['ficTracDeltaRotationVectorLab']['x'],
                         'dy': match['ficTracDeltaRotationVectorLab']['y'],
                         'dz': match['ficTracDeltaRotationVectorLab']['z']}
+        entries[entry] = pd.Series(framedat).to_frame().T
+
+    if len(entries) > 0:
+        return pd.concat(entries, ignore_index = True)
+    else:
+        return pd.DataFrame()
+    
+
+def attmptDfFromLog(dat):
+    # get fictrac data
+    matching = [s for s in dat if "fictracAttempt" in s]
+    entries = [None]*len(matching)
+    for entry, match in enumerate(matching):
+        framedat = {'frame': match['frame'],
+                    'time': match['timeSecs'],
+                        'xattempt': match['fictracAttempt']['x'],
+                        'yattempt': match['fictracAttempt']['y'],
+                        'zattempt': match['fictracAttempt']['z']}
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
