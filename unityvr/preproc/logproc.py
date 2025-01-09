@@ -22,7 +22,7 @@ nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
 ##TODO: Move dxattempt, dyattempt to attemptDfCols and remove from posDfCols
-attmptDfCols = ['frame','time','xattempt','yattempt','angleattempt']
+attmptDfCols = ['frame','time','dxattempt','dyattempt','angleattempt']
 # Data class definition
 
 @dataclass
@@ -344,8 +344,8 @@ def attmptDfFromLog(dat):
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
                     'time': match['timeSecs'],
-                        'xattempt': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x,y in unity units (dm)
-                        'yattempt': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'],
+                        'dxattempt': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x,y in unity units (dm)
+                        'dyattempt': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'],
                         'angleattempt': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
         entries[entry] = pd.Series(framedat).to_frame().T
 
