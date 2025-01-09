@@ -22,7 +22,7 @@ nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
 ##TODO: Move dxattempt, dyattempt to attemptDfCols and remove from posDfCols
-attmptDfCols = ['frame','time','xattempt','yattempt','zattempt']
+attmptDfCols = ['frame','time','xattempt','yattempt','angleattempt']
 # Data class definition
 
 @dataclass
@@ -346,7 +346,7 @@ def attmptDfFromLog(dat):
                     'time': match['timeSecs'],
                         'xattempt': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x
                         'yattempt': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'],
-                        'angleAttempt': match['fictracAttempt']['z']}
+                        'angleattempt': match['fictracAttempt']['z']}
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
