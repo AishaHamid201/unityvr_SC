@@ -21,6 +21,7 @@ tempDfCols = ['frame','time','temperature']
 nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
+##TODO: Move dxattempt, dyattempt to attemptDfCols and remove from posDfCols
 attmptDfCols = ['frame','time','xattempt','yattempt','zattempt']
 # Data class definition
 
@@ -215,8 +216,11 @@ def makeMetaDict(dat, fileName):
     if len(matching) == 0:
         print('no fictrac metadata')
         ballRad = 0.0
+        translationalGain = 1.0
     else:
         ballRad = matching[0]["ficTracBallRadius"]
+        try: translationalGain = matching[0]["translationalGain"]
+        except: translationalGain = 1.0
 
     matching = [s for s in dat if "refreshRateHz" in s]
     setFrameRate = matching[0]["refreshRateHz"]
@@ -231,6 +235,7 @@ def makeMetaDict(dat, fileName):
         'date': datestr,
         'time': timestr,
         'ballRad': ballRad,
+        'translationalGain': translationalGain,
         'setFrameRate': setFrameRate,
         'notes': metadat[5],
         'temperature': metadat[6],
@@ -334,13 +339,14 @@ def ftDfFromLog(dat):
 def attmptDfFromLog(dat):
     # get fictrac data
     matching = [s for s in dat if "fictracAttempt" in s]
+    matchingRad = [s for s in dat if "ficTracBallRadius" in s]
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
                     'time': match['timeSecs'],
-                        'xattempt': match['fictracAttempt']['x'],
-                        'yattempt': match['fictracAttempt']['y'],
-                        'zattempt': match['fictracAttempt']['z']}
+                        'xattempt': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x
+                        'yattempt': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'],
+                        'angleAttempt': match['fictracAttempt']['z']}
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
