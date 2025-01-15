@@ -33,12 +33,22 @@ def position(uvrDat, derive = True, rotate_by = None, filter_date = '2021-09-08'
 
     #rotate
     if rotate_by is not None:
+        #derive forward and side velocities: does not depend on rotation of theta
+        if 'dx' not in posDf:
+            xy = np.diff(posDf[['x', 'y']]/uvrDat.metadata['ballRad'], axis=0)
+            rotation_mats = np.array([np.array([[np.cos(theta), -np.sin(theta)],
+                                [np.sin(theta),  np.cos(theta)]]).T for theta in np.deg2rad(posDf['angle'])[:-1]])
+            posDf['dx'], posDf['dy'] = np.vstack([[0,0],np.einsum('ijk,ik->ij', rotation_mats, xy)]).T
+
+        #rotate the trajectory
         posDf['x'], posDf['y'] = rotation_deg(posDf['x'],posDf['y'],rotate_by)
+        
         '''
+        INCORRECT CODE BLOCK, treats forward and side velocities like gradient of x and y
         if 'dx' in posDf:
             posDf['dx'], posDf['dy'] = rotation_deg(posDf['dx'],posDf['dy'],rotate_by)
         else:
-            posDf['dx'] = np.gradient(posDf['x']) #TODO: REVISIT THIS
+            posDf['dx'] = np.gradient(posDf['x'])
             posDf['dy'] = np.gradient(posDf['y'])
         if 'dxattempt' in posDf:
             posDf['dxattempt'], posDf['dyattempt'] = rotation_deg(posDf['dxattempt'],posDf['dyattempt'],rotate_by)
@@ -69,10 +79,12 @@ def position(uvrDat, derive = True, rotate_by = None, filter_date = '2021-09-08'
     return posDf
 
 def posDerive(posDf):
-    posDf['ds'] = np.sqrt(posDf['dx']**2+posDf['dy']**2)
+    posDf['ds'] = np.sqrt(posDf['dx']**2+posDf['dy']**2) #magnitude of the egocentric translation vector
     posDf['s'] = np.cumsum(posDf['ds'])
     posDf['dTh'] = (np.diff(posDf['angle'],prepend=posDf['angle'].iloc[0]) + 180)%360 - 180
     posDf['radangle'] = ((posDf['angle']+180)%360-180)*np.pi/180
+    posDf['Delx'] = np.gradient(posDf['x']) #allocentric translation vector
+    posDf['Dely'] = np.gradient(posDf['y'])
     return posDf
 
 #segment flight bouts
