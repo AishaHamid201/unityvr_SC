@@ -79,12 +79,12 @@ def position(uvrDat, derive = True, rotate_by = None, filter_date = '2021-09-08'
     return posDf
 
 def posDerive(posDf):
-    posDf['ds'] = np.sqrt(posDf['dx']**2+posDf['dy']**2) #magnitude of the egocentric translation vector
-    posDf['s'] = np.cumsum(posDf['ds'])
+    posDf['ds'] = np.sqrt(posDf['dx']**2+posDf['dy']**2) #magnitude of the translation vector
+    posDf['s'] = np.cumsum(posDf['ds']) #integrated pathlength from start
     posDf['dTh'] = (np.diff(posDf['angle'],prepend=posDf['angle'].iloc[0]) + 180)%360 - 180
     posDf['radangle'] = ((posDf['angle']+180)%360-180)*np.pi/180
-    posDf['Delx'] = np.gradient(posDf['x']) #allocentric translation vector
-    posDf['Dely'] = np.gradient(posDf['y'])
+    posDf['Delx'] = np.gradient(posDf['x']) #allocentric translation vector x component
+    posDf['Dely'] = np.gradient(posDf['y']) #allocentric translation vector y component
     return posDf
 
 #segment flight bouts
