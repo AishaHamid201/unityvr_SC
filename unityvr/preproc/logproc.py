@@ -15,14 +15,14 @@ from scipy.signal import medfilt
 objDfCols = ['name','collider','px','py','pz','rx','ry','rz','sx','sy','sz']
 
 posDfCols = ['frame','time','x','y','angle']
-ftDfCols = ['frame','ficTracTReadMs','ficTracTWriteMs','dx','dy','dz']
+ftDfCols = ['frame','ficTracTReadMs','ficTracTWriteMs','wx_ft','wy_ft','wz_ft']
 dtDfCols = ['frame','time','dt']
 tempDfCols = ['frame','time','temperature']
 nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
-##TODO: Move dxattempt, dyattempt to attemptDfCols and remove from posDfCols
-attmptDfCols = ['frame','time','dxattempt','dyattempt','angleattempt']
+attmptDfCols = ['frame','time','dxattempt_ft','dyattempt_ft','angleattempt_ft']
+
 # Data class definition
 
 @dataclass
@@ -84,47 +84,6 @@ class unityVRexperiment:
         self.flightDf.to_csv(sep.join([savepath,'flightDf.csv']))
 
         return savepath
-
-# extract all dataframes from log file and save to disk
-'''  # Not sure why this exists, will be deprecated
-def convertJsonToPandas(dirName,fileName,saveDir, computePDtrace):
-
-    dat = openUnityLog(dirName, fileName)
-    metadat = makeMetaDict(dat, fileName)
-
-    saveName = (metadat['expid']).split('_')[-1] + '/' + metadat['trial']
-    savepath = sep.join([saveDir,saveName,'uvr'])
-
-    # make directory
-    if not exists(savepath): makedirs(savepath)
-
-    # save metadata
-    with open(sep.join([savepath,'metadata.json']), 'w') as outfile:
-        json.dump(metadat, outfile,indent=4)
-
-    # construct and save object dataframe
-    objDf = objDfFromLog(dat)
-    objDf.to_csv(sep.join([savepath,'objDf.csv']))
-
-    # construct and save position and velocity dataframes
-    posDf, ftDf, nidDf = timeseriesDfFromLog(dat, computePDtrace)
-    posDf.to_csv(sep.join([savepath,'posDf.csv']))
-    del posDf 
-    ftDf.to_csv(sep.join([savepath,'ftDf.csv']))
-    del ftDf 
-    nidDf.to_csv(sep.join([savepath,'nidDf.csv']))
-    del nidDf 
-
-    # construct and save texture dataframes
-    texDf = texDfFromLog(dat)
-    vidDf = vidDfFromLog(dat)
-    texDf.to_csv(sep.join([savepath,'texDf.csv']))
-    del texDf 
-    vidDf.to_csv(sep.join([savepath,'vidDf.csv']))
-    del vidDf 
-
-    return savepath
-'''
 
 # constructor for unityVRexperiment
 def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,**kwargs):
@@ -296,10 +255,10 @@ def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None):
                         'x': match['worldPosition']['x'],
                         'y': match['worldPosition']['z'], #axes are named differently in Unity
                         'angle': (-match['worldRotationDegs']['y'])%360, #flip due to left handed convention in Unity
-                        'dx': match['actualTranslation']['x'],
-                        'dy': match['actualTranslation']['z'],
-                        'dxattempt': match['attemptedTranslation']['x'],
-                        'dyattempt': match['attemptedTranslation']['z']
+                        'dx_ft': match['actualTranslation']['x'],
+                        'dy_ft': match['actualTranslation']['z'],
+                        'dxattempt_ft': match['attemptedTranslation']['x'],
+                        'dyattempt_ft': match['attemptedTranslation']['z']
                        }
         else:
             framedat = {'frame': match['frame'],
@@ -325,9 +284,9 @@ def ftDfFromLog(dat):
         framedat = {'frame': match['frame'],
                         'ficTracTReadMs': match['ficTracTimestampReadMs'],
                         'ficTracTWriteMs': match['ficTracTimestampWriteMs'],
-                        'dx': match['ficTracDeltaRotationVectorLab']['x'],
-                        'dy': match['ficTracDeltaRotationVectorLab']['y'],
-                        'dz': match['ficTracDeltaRotationVectorLab']['z']}
+                        'wx_ft': match['ficTracDeltaRotationVectorLab']['x'],
+                        'wy_ft': match['ficTracDeltaRotationVectorLab']['y'],
+                        'wz_ft': match['ficTracDeltaRotationVectorLab']['z']}
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
@@ -337,16 +296,16 @@ def ftDfFromLog(dat):
     
 
 def attmptDfFromLog(dat):
-    # get fictrac data
+    # get fictrac data during open loop periods
     matching = [s for s in dat if "fictracAttempt" in s]
     matchingRad = [s for s in dat if "ficTracBallRadius" in s]
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
                     'time': match['timeSecs'],
-                        'dxattempt': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x,y in unity units (dm)
-                        'dyattempt': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'],
-                        'angleattempt': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
+                        'dxattempt_ft': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x,y in unity units (dm), forward motion
+                        'dyattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #rightward motion
+                        'angleattempt_ft': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
@@ -582,4 +541,45 @@ def generateInterTime(tsDf):
     tsDf['timeinterp'] = np.clip(timeinterp_f(frameIndx), timeAtFramestart[0], timeAtFramestart[-1])
 
     return tsDf
+'''
+
+# extract all dataframes from log file and save to disk
+'''  # Not sure why this exists, will be deprecated
+def convertJsonToPandas(dirName,fileName,saveDir, computePDtrace):
+
+    dat = openUnityLog(dirName, fileName)
+    metadat = makeMetaDict(dat, fileName)
+
+    saveName = (metadat['expid']).split('_')[-1] + '/' + metadat['trial']
+    savepath = sep.join([saveDir,saveName,'uvr'])
+
+    # make directory
+    if not exists(savepath): makedirs(savepath)
+
+    # save metadata
+    with open(sep.join([savepath,'metadata.json']), 'w') as outfile:
+        json.dump(metadat, outfile,indent=4)
+
+    # construct and save object dataframe
+    objDf = objDfFromLog(dat)
+    objDf.to_csv(sep.join([savepath,'objDf.csv']))
+
+    # construct and save position and velocity dataframes
+    posDf, ftDf, nidDf = timeseriesDfFromLog(dat, computePDtrace)
+    posDf.to_csv(sep.join([savepath,'posDf.csv']))
+    del posDf 
+    ftDf.to_csv(sep.join([savepath,'ftDf.csv']))
+    del ftDf 
+    nidDf.to_csv(sep.join([savepath,'nidDf.csv']))
+    del nidDf 
+
+    # construct and save texture dataframes
+    texDf = texDfFromLog(dat)
+    vidDf = vidDfFromLog(dat)
+    texDf.to_csv(sep.join([savepath,'texDf.csv']))
+    del texDf 
+    vidDf.to_csv(sep.join([savepath,'vidDf.csv']))
+    del vidDf 
+
+    return savepath
 '''
