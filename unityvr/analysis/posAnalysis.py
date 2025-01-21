@@ -39,6 +39,7 @@ def position(uvrDat, derive = True, rotate_by = None, plot = False, plotsave=Fal
         posDf = computeVelocities(posDf,**computeVelocitiesKwargs)
         
         #get flight and clipped from flightDf dataframe
+        #why? 
         if hasattr(uvrDat,'flightDf'):
             if ('flight' in uvrDat.flightDf):
                 posDf['flight'] = uvrDat.flightDf['flight'].copy()
@@ -52,7 +53,8 @@ def position(uvrDat, derive = True, rotate_by = None, plot = False, plotsave=Fal
 
     return posDf
 
-def posDerive(posDf):
+def posDerive(inDf):
+    posDf = inDf.copy() #NOT INPLACE
     posDf['ds'] = np.sqrt(posDf['dx']**2+posDf['dy']**2) #magnitude of the translation vector
     posDf['s'] = np.cumsum(posDf['ds']) #integrated pathlength from start
     posDf['dTh'] = (np.diff(posDf['angle'],prepend=posDf['angle'].iloc[0]) + 180)%360 - 180
