@@ -244,9 +244,9 @@ def objDfFromLog(dat):
         return pd.DataFrame()
 
 
-def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None):
+def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None, ignoreKeys=['meshGameObjectPath']):
     # get info about camera position in vr
-    matching = [s for s in dat if posDfKey in s] #checks key to extract from that particular dump
+    matching = [s for s in dat if ((posDfKey in s) & (np.all([i not in s for i in ignoreKeys])))] #checks key to extract from that particular dump
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         if fictracSubject != 'Integrated':
