@@ -44,6 +44,7 @@ class unityVRexperiment:
     shapeDf: pd.DataFrame = pd.DataFrame()
     timeDf: pd.DataFrame = pd.DataFrame()
     flightDf: pd.DataFrame = pd.DataFrame()
+    tempDf: pd.DataFrame = pd.DataFrame()
 
     # object locations
     objDf: pd.DataFrame = pd.DataFrame(columns=objDfCols)
@@ -82,6 +83,7 @@ class unityVRexperiment:
         self.shapeDf.to_csv(sep.join([savepath,'shapeDf.csv']))
         self.timeDf.to_csv(sep.join([savepath,'timeDf.csv']))
         self.flightDf.to_csv(sep.join([savepath,'flightDf.csv']))
+        self.tempDf.to_csv(sep.join([savepath,'tempDf.csv']))
 
         return savepath
 
@@ -96,8 +98,9 @@ def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,**kwargs):
     texDf = texDfFromLog(dat)
     vidDf = vidDfFromLog(dat)
     attmptDf = attmptDfFromLog(dat)
+    tempDf = tempDfFromLog(dat)
 
-    uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,objDf=objDf,texDf=texDf, vidDf=vidDf, attmptDf=attmptDf)
+    uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,objDf=objDf,texDf=texDf, vidDf=vidDf, attmptDf=attmptDf, tempDf=tempDf)
 
     return uvrexperiment
 
@@ -433,7 +436,7 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     posDf = pd.DataFrame(columns=posDfCols)
     ftDf = pd.DataFrame(columns=ftDfCols)
     dtDf = pd.DataFrame(columns=dtDfCols)
-    tempDf = pd.DataFrame(columns=tempDfCols)
+
     if computePDtrace:
         pdDf = pd.DataFrame(columns = ['frame','time','pdsig', 'imgfsig'])
     else:
@@ -442,9 +445,7 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     posDf = posDfFromLog(dat,**posDfKeyWargs)
     ftDf = ftDfFromLog(dat)
     dtDf = dtDfFromLog(dat)
-    
-    try: tempDf = tempDfFromLog(dat)
-    except: print("No temperature data was recorded.")
+
 
     try: pdDf = pdDfFromLog(dat, computePDtrace)
     except: print("No analog input data was recorded.")
@@ -465,8 +466,7 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     if len(pdDf) > 0 and len(dtDf) > 0:
 
         nidDf = pd.merge(dtDf, pdDf, on="frame", how='left').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
-        if len(tempDf) > 0:
-            nidDf = pd.merge(nidDf, tempDf, on="frame", how='outer').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
+        
         if computePDtrace:
             nidDf["pdFilt"]  = nidDf.pdsig.values
             nidDf.pdFilt.values[np.isfinite(nidDf.pdsig.values)] = medfilt(nidDf.pdsig.values[np.isfinite(nidDf.pdsig.values)])
