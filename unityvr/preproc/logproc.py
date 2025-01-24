@@ -17,7 +17,7 @@ objDfCols = ['name','collider','px','py','pz','rx','ry','rz','sx','sy','sz']
 posDfCols = ['frame','time','x','y','angle']
 ftDfCols = ['frame','ficTracTReadMs','ficTracTWriteMs','wx_ft','wy_ft','wz_ft']
 dtDfCols = ['frame','time','dt']
-tempDfCols = ['frame','time','temperature']
+tempDfCols = ['frame','tempReadTime','temperature']
 nidDfCols = ['frame','time','dt','pdsig','imgfsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
@@ -149,8 +149,13 @@ def loadUVRData(savepath):
         nidDf = pd.DataFrame()
         #Nidaq dataframe may not have been extracted from the raw data due to memory/time constraints
 
+    try: tempDf = pd.read_csv(sep.join([savepath,'tempDf.csv'])).drop(columns=['Unnamed: 0'])
+    except FileNotFoundError:
+        tempDf = pd.DataFrame()
+        #No temperature time series was recorded with this experiment, fill with empty DataFrame
+
     uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,
-                                      objDf=objDf,texDf=texDf,shapeDf=shapeDf,timeDf=timeDf, vidDf=vidDf, flightDf=flightDf, attmptDf=attmptDf)
+                                      objDf=objDf,texDf=texDf,shapeDf=shapeDf,timeDf=timeDf, vidDf=vidDf, flightDf=flightDf, attmptDf=attmptDf, tempDf=tempDf)
 
     return uvrexperiment
 
@@ -413,14 +418,18 @@ def tempDfFromLog(dat):
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
-                    'time': match['timeSecs'],
+                    'tempReadTime': match['timeSecs'],
                     'temperature': match['temperature']
                     }
         entries[entry] = pd.Series(framedat).to_frame().T
-
+    
     if len(entries) > 0:
-        return pd.concat(entries,ignore_index = True)
+        tempDf = pd.concat(entries,ignore_index = True).groupby('frame').mean().reset_index() #average over multiple temperature readings per unity frame
+        dtDf = dtDfFromLog(dat) #get the frame times
+        if len(dtDf)>0: tempDf = pd.merge(dtDf, tempDf, on="frame", how='outer')
+        return tempDf
     else:
+        print('No temperature data was recorded.')
         return pd.DataFrame()
 
 
@@ -446,10 +455,11 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     ftDf = ftDfFromLog(dat)
     dtDf = dtDfFromLog(dat)
 
-
     try: pdDf = pdDfFromLog(dat, computePDtrace)
     except: print("No analog input data was recorded.")
 
+
+    print('pdDf time:', pdDf.time[0], 'posDf time:', posDf.time[0], 'dtDf time:', dtDf.time[0])
     if len(posDf) > 0: posDf.time = posDf.time-posDf.time[0]
     if len(dtDf) > 0: dtDf.time = dtDf.time-dtDf.time[0]
     if len(pdDf) > 0: pdDf.time = pdDf.time-pdDf.time[0]
@@ -466,11 +476,11 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     if len(pdDf) > 0 and len(dtDf) > 0:
 
         nidDf = pd.merge(dtDf, pdDf, on="frame", how='left').rename(columns={'time_x':'time'}).drop(['time_y'],axis=1)
-        
+
         if computePDtrace:
             nidDf["pdFilt"]  = nidDf.pdsig.values
             nidDf.pdFilt.values[np.isfinite(nidDf.pdsig.values)] = medfilt(nidDf.pdsig.values[np.isfinite(nidDf.pdsig.values)])
-            nidDf["pdThresh"]  = 1*(np.asarray(nidDf.pdFilt>=np.nanmedian(nidDf.pdFilt.values)))
+            #nidDf["pdThresh"]  = 1*(np.asarray(nidDf.pdFilt>=np.nanmedian(nidDf.pdFilt.values)))
 
         #nidDf["imgfFilt"]  = nidDf.imgfsig.values
         #nidDf.imgfFilt.values[np.isfinite(nidDf.imgfsig.values)] = medfilt(nidDf.imgfsig.values[np.isfinite(nidDf.imgfsig.values)])

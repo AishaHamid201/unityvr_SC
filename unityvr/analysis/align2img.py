@@ -101,18 +101,18 @@ def generateUnityExpDf(imgVolumeTimes, uvrDat, imgMetadat, suppressDepugPlot = F
 
      #use volume start frames to downsample unityDfs
      for i,unityDfstr in enumerate(unityDfs):
-          unityDf = getattr(uvrDat,unityDfstr)
-          if (frameStr in unityDf):
-               if len(unityDf[frameStr].unique())==len(unityDf[frameStr]):
-                    volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame)) if volFrame[i] in unityDf.frame.values])
-                    # try: volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame))])
-                    # except IndexError: 
-                    #     volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0]
-                    #     print('errored out in :', unityDfstr) #in 1d gives true when the element of the 1st array is in the second array
-                    #volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0] #in 1d gives true when the element of the 1st array is in the second array
-                    framesinPos = np.where(np.in1d(uvrDat.posDf.frame.values[volFramePos], unityDf.frame.values[volFrameId]))[0] #which volume start frames of current Df are in posDf
-                    unityDfsDS[i] = unityDf.iloc[volFrameId,:].copy()
-                    unityDfsDS[i][timeStr] = imgVolumeTimes[framesinPos].copy() #get the volume start time for the appropriate volumes in the unity array
+            unityDf = getattr(uvrDat,unityDfstr)
+            if (frameStr in unityDf):
+                if len(unityDf[frameStr].unique())==len(unityDf[frameStr]):
+                        volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame)) if volFrame[i] in unityDf.frame.values])
+                        # try: volFrameId = np.array([np.where(volFrame[i] == unityDf.frame.values)[0][0] for i in range(len(volFrame))])
+                        # except IndexError: 
+                        #     volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0]
+                        #     print('errored out in :', unityDfstr) #in 1d gives true when the element of the 1st array is in the second array
+                        #volFrameId = np.where(np.in1d(unityDf.frame.values,volFrame, ))[0] #in 1d gives true when the element of the 1st array is in the second array
+                        framesinPos = np.where(np.in1d(uvrDat.posDf.frame.values[volFramePos], unityDf.frame.values[volFrameId]))[0] #which volume start frames of current Df are in posDf
+                        unityDfsDS[i] = unityDf.iloc[volFrameId,:].copy()
+                        unityDfsDS[i][timeStr] = imgVolumeTimes[framesinPos].copy() #get the volume start time for the appropriate volumes in the unity array
      
      expDf = mergeUnityDfs([x for x in unityDfsDS if x is not None],**mergeUnityDfs_params)
      return expDf
@@ -294,12 +294,15 @@ def find_upticks(signal, smoothing=3):
 #             nidDf.loc[f,'frameToAlign'] = nidDf.loc[f-1,'frameToAlign']
 #     return nidDf
 
-def alignWithPdSignal(nidDf, pdThresh=0.1, noFrameDropCorrection=True, supressPDAlignmentPlot = True, lims=[0,100]):
+def alignWithPdSignal(nidDf, pdThresh=0.1, pdClip = [0.04, 0.12], noFrameDropCorrection=True, supressPDAlignmentPlot = True, lims=[0,100]):
     # Drop NaNs and reset index for cleaner processing
-    nidDf = nidDf.dropna(subset=['pdsig']).reset_index(drop=True)
+    nidDf = nidDf.dropna(subset=['pdFilt']).reset_index(drop=True)
+
+    #clip the photodiode signal to a reasonable range
+    nidDf['pdFilt'] = np.clip(nidDf['pdFilt'], pdClip[0], pdClip[1])
     
     # Find indices where pdsig crosses the threshold in either direction
-    dips = np.where(np.diff(nidDf['pdsig'] > pdThresh) != 0)[0]
+    dips = np.where(np.diff(nidDf['pdFilt'] > pdThresh) != 0)[0]
     
     # Calculate frame correction based on the first crossing point
     NcorrectionFrames = nidDf['frame'].iloc[dips[0]] - nidDf['frame'].iloc[0] + 1
@@ -317,8 +320,8 @@ def alignWithPdSignal(nidDf, pdThresh=0.1, noFrameDropCorrection=True, supressPD
 
     if not supressPDAlignmentPlot:
         _, ax = plt.subplots(figsize=(3, 1))
-        ax.plot(nidDf['pdsig'].values, label='Photodiode Signal')
-        ax.plot(dips, nidDf['pdsig'].values[dips], 'ko')
+        ax.plot(nidDf['pdFilt'].values, label='Photodiode Signal')
+        ax.plot(dips, nidDf['pdFilt'].values[dips], 'ko')
         ax.set_xlim(lims[0], lims[1])
         vutils.myAxisTheme(ax)
     
