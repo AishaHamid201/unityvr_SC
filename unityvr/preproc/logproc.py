@@ -88,16 +88,16 @@ class unityVRexperiment:
         return savepath
 
 # constructor for unityVRexperiment
-def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,**kwargs):
+def constructUnityVRexperiment(dirName,fileName,computePDtrace = True,enforce_cm = False,**kwargs):
 
     dat = openUnityLog(dirName, fileName)
 
     metadat = makeMetaDict(dat, fileName)
-    objDf = objDfFromLog(dat)
-    posDf, ftDf, nidDf = timeseriesDfFromLog(dat, computePDtrace, **kwargs)
+    objDf = objDfFromLog(dat, enforce_cm=enforce_cm)
+    posDf, ftDf, nidDf = timeseriesDfFromLog(dat, computePDtrace, enforce_cm=enforce_cm, **kwargs)
     texDf = texDfFromLog(dat)
     vidDf = vidDfFromLog(dat)
-    attmptDf = attmptDfFromLog(dat)
+    attmptDf = attmptDfFromLog(dat, enforce_cm=enforce_cm)
     tempDf = tempDfFromLog(dat)
 
     uvrexperiment = unityVRexperiment(metadata=metadat,posDf=posDf,ftDf=ftDf,nidDf=nidDf,objDf=objDf,texDf=texDf, vidDf=vidDf, attmptDf=attmptDf, tempDf=tempDf)
@@ -229,21 +229,30 @@ def openUnityLog(dirName, fileName):
 
 # Functions for extracting data from log file and converting it to pandas dataframe
 
-def objDfFromLog(dat):
+def objDfFromLog(dat, enforce_cm = False):
     # get dataframe with info about objects in vr
     matching = [s for s in dat if "meshGameObjectPath" in s]
+    matchingRad = [s for s in dat if "ficTracBallRadius" in s]
+    if 'translationalGain' in matchingRad[0]:
+        gainVal = matchingRad[0]['translationalGain']
+    else:
+        gainVal = 1.0
+    if enforce_cm:
+        convf = 10.0
+    else:
+        convf = 1.0
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         framedat = {'name': match['meshGameObjectPath'],
                     'collider': match['colliderType'],
-                    'px': match['worldPosition']['x'],
-                    'py': match['worldPosition']['z'],
+                    'px': match['worldPosition']['x']/gainVal*convf,
+                    'py': match['worldPosition']['z']/gainVal*convf,
                     'pz': match['worldPosition']['y'],
                     'rx': match['worldRotationDegs']['x'],
                     'ry': match['worldRotationDegs']['z'],
                     'rz': match['worldRotationDegs']['y'],
-                    'sx': match['worldScale']['x'],
-                    'sy': match['worldScale']['z'],
+                    'sx': match['worldScale']['x']/gainVal*convf,
+                    'sy': match['worldScale']['z']/gainVal*convf,
                     'sz': match['worldScale']['y']}
         entries[entry] = pd.Series(framedat).to_frame().T
     if len(entries) > 0:
@@ -252,27 +261,36 @@ def objDfFromLog(dat):
         return pd.DataFrame()
 
 
-def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None, ignoreKeys=['meshGameObjectPath']):
+def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None, ignoreKeys=['meshGameObjectPath'], enforce_cm = False):
     # get info about camera position in vr
     matching = [s for s in dat if ((posDfKey in s) & (np.all([i not in s for i in ignoreKeys])))] #checks key to extract from that particular dump
+    matchingRad = [s for s in dat if "ficTracBallRadius" in s]
+    if 'translationalGain' in matchingRad[0]:
+        gainVal = matchingRad[0]['translationalGain']
+    else:
+        gainVal = 1.0 
+    if enforce_cm:
+        convf = 10.0
+    else:
+        convf = 1.0
     entries = [None]*len(matching)
     for entry, match in enumerate(matching):
         if fictracSubject != 'Integrated':
             framedat = {'frame': match['frame'],
                         'time': match['timeSecs'],
-                        'x': match['worldPosition']['x'],
-                        'y': match['worldPosition']['z'], #axes are named differently in Unity
+                        'x': match['worldPosition']['x']/gainVal*convf,
+                        'y': match['worldPosition']['z']/gainVal*convf, #axes are named differently in Unity
                         'angle': (-match['worldRotationDegs']['y'])%360, #flip due to left handed convention in Unity
-                        'dx_ft': match['actualTranslation']['x'],
-                        'dy_ft': match['actualTranslation']['z'],
-                        'dxattempt_ft': match['attemptedTranslation']['x'],
-                        'dyattempt_ft': match['attemptedTranslation']['z']
+                        'dx_ft': match['actualTranslation']['x']/gainVal*convf,
+                        'dy_ft': match['actualTranslation']['z']/gainVal*convf,
+                        'dxattempt_ft': match['attemptedTranslation']['x']/gainVal*convf,
+                        'dyattempt_ft': match['attemptedTranslation']['z']/gainVal*convf
                        }
         else:
             framedat = {'frame': match['frame'],
                             'time': match['timeSecs'],
-                            'x': match['worldPosition']['x'],
-                            'y': match['worldPosition']['z'], #axes are named differently in Unity
+                            'x': match['worldPosition']['x']/gainVal*convf,
+                            'y': match['worldPosition']['z']/gainVal*convf, #axes are named differently in Unity
                             'angle': (-match['worldRotationDegs']['y'])%360, #flip due to left handed convention in Unity
                         }
         entries[entry] = pd.Series(framedat).to_frame().T
@@ -303,16 +321,22 @@ def ftDfFromLog(dat):
         return pd.DataFrame()
     
 
-def attmptDfFromLog(dat):
+def attmptDfFromLog(dat, enforce_cm = False):
     # get fictrac data during open loop periods
     matching = [s for s in dat if "fictracAttempt" in s]
     matchingRad = [s for s in dat if "ficTracBallRadius" in s]
     entries = [None]*len(matching)
+    if enforce_cm:
+        convf = 10.0
+    else:
+        convf = 1.0
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
-                    'time': match['timeSecs'],
-                        'dxattempt_ft': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #scale by ball radius and translational gain to get true x,y in unity units (dm), forward motion
-                        'dyattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*matchingRad[0]['translationalGain'], #rightward motion
+                    'time': match['timeSecs'], 
+                        'dxattempt_ft': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*convf, 
+                        #scale by ball radius but not by translational gain to get true x,y in unity units (dm or if enforced cm), forward motion
+                        #TODO: check that translational gain should be missing in this conversion
+                        'dyattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*convf, #rightward motion
                         'angleattempt_ft': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
         entries[entry] = pd.Series(framedat).to_frame().T
 
