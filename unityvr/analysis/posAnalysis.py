@@ -132,18 +132,84 @@ def rotation_deg(x,y,theta):
     r = np.matmul(np.array([x,y]).T,rotation_mat_rad(theta))
     return r[:,0], r[:,1]
 
+"""
+ComputeVelocities
+@author: hulseb, modifed by chitniss
+"""
 
 # Add derrived quantities: Velocities
-def computeVelocities(inDf, window=7, order=3):
+def computeVelocities(inDf, ToFilter = True,  BoxCarWidth = 9):
     posDf = inDf.copy()
+
+    ##########################################################################################################
+    # Step 1: Compute translational velocities and travel direction in allocentric coordinates.
+    ##########################################################################################################
+
+    posDf['dx_world'] = posDf.dx #one sided difference computed in position
+    posDf['dy_world'] = posDf.dy #one sided difference
     #window and order for filter
 
-    # add derrived parameter to positional dataframe
-    posDf['vT'] = np.hypot(np.gradient(posDf.x.values), np.gradient(posDf.y.values))*(1/posDf.dt) #translational velocity in decimeter/second
-    posDf['vR'] = np.gradient(np.unwrap(posDf.angle.values)) #rotational velocity in degrees/second
+    # Compute the worlds's translational speed 
+    posDf['vT_world']  =  np.hypot( posDf['dx_world'], posDf['dy_world'])*(1/posDf.dt) # in distance units/s (if enforce_cm in logproc then in cm/s)
 
-    posDf['vT_filt'] = savgolFilterInterpolated(posDf, 'vT', window, order) #savgol filtered velocities
-    posDf['vR_filt'] = savgolFilterInterpolated(posDf, 'vR', window, order)
+    #here we use one sided difference for dx and dy. Note that fictrac provides changes in fly's rotational velocity as one sided differences. 
+    #if we want the translational speed to be the same in egocentric and allocentric coordinates, we should be using one sided differences for allocentric changes
+
+
+    # Optionally filter the traces above
+    if ToFilter:
+        # BoxCarWidth = 9, so center sample and 3 on either side. This means they'll be
+        # no overlap between samples when we add the velocity information to downsampled
+        # dataframes like expDf, which are at ~10 Hz instead of ~120 Hz.  
+        posDf['dx_world']      =  posDf['dx_world'].rolling(window = BoxCarWidth, center = True, min_periods=1).mean()
+        posDf['dy_world']      =  posDf['dy_world'].rolling(window = BoxCarWidth, center = True, min_periods=1).mean()
+        posDf['vT_world']      =  posDf['vT_world'].rolling(window = BoxCarWidth, center = True, min_periods=1).mean()
+        
+    # Compute the translational velocity angle in world coordinates (0 degrees is y axis. 90 degrees is positive x axis)
+    # Note: we compute vT_world_angle after the filtering step above because it's a circular variable so annoying to filter after computing it.
+    posDf['vT_world_angle']  =  np.arctan2( posDf['dx_world'], posDf['dy_world'] )/2/np.pi*360  # 0 degrees is y axis since arctan2(1,0) is 90 degrees. 
+    #TODO: verify that this convention works with the zero defined by the brightest side. 
+
+    # Compute the world's rotational velocity
+    posDf['dangle_world']  =  np.rad2deg(np.diff( np.unwrap(np.deg2rad(posDf.angle.values)))) # in degrees
+    posDf['vR_world']      =  posDf['dangle_world'] * (1/posDf.dt) # in degrees/second
+    
+    # Optionally filter the traces above
+    if ToFilter:
+        posDf['dangle_world']  =  posDf['dangle_world'].rolling(window = BoxCarWidth, center = True, min_periods=1).mean()
+        posDf['vR_world']      =  posDf['vR_world'].rolling(window = BoxCarWidth, center = True, min_periods=1).mean()
+
+    ##########################################################################################################
+    # Step 2: Compute translational velocities and travel direction in egocentric coordinates.
+    ##########################################################################################################
+            
+    # Copy dx_ft and dy_ft to dx_fly and dy_fly
+    posDf['dx_fly']   =   posDf['dx_ft']
+    posDf['dy_fly']   =   posDf['dy_ft']
+    
+    # Compute the fly's egocentric translational speed (should be same as allocentric translational speed)
+    posDf['vT_fly'] = np.hypot(posDf['dx_fly'], posDf['dy_fly']) * (1/posDf.dt) 
+    
+    # Compute the fly's forward and side velocities
+    posDf['vF_fly']  =  posDf["dx_fly"] * (1/posDf.dt) 
+    posDf['vL_fly']  =  posDf["dy_fly"] * (1/posDf.dt)  #should be +ve in the rightward direction
+    
+    # Optionally filter the above traces
+    if ToFilter:
+        posDf['dx_ft']         =  posDf['dx_ft'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        posDf['dy_ft']         =  posDf['dy_ft'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean()
+        posDf['dxattempt_ft']  =  posDf['dxattempt_ft'].rolling( window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
+        posDf['dyattempt_ft']  =  posDf['dyattempt_ft'].rolling (window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
+        posDf['dx_fly']         =  posDf['dx_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        posDf['dy_fly']         =  posDf['dy_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        posDf['vT_fly']         =  posDf['vT_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        posDf['vF_fly']         =  posDf['vF_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        posDf['vL_fly']         =  posDf['vL_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
+        
+    # Lastly, compute the fly's egocentric translational angle. As above, we do this after filter because this is a circular variable. 
+    posDf['vT_fly_angle']  =  np.arctan2( posDf['dx_fly'], posDf['dy_fly'] )/2/np.pi*360  # 0 degrees is y axis since arctan2(1,0) is 90 degrees. 
+    #TODO: verify that this convention works with the zero defined by the brightest side.
+    
     return posDf
 
 def getTimeDf(uvrDat, trialDir, posDf = None, imaging = False, rate = 9.5509):

@@ -333,10 +333,9 @@ def attmptDfFromLog(dat, enforce_cm = False):
     for entry, match in enumerate(matching):
         framedat = {'frame': match['frame'],
                     'time': match['timeSecs'], 
-                        'dxattempt_ft': match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*convf, 
-                        #scale by ball radius but not by translational gain to get true x,y in unity units (dm or if enforced cm), forward motion
-                        #TODO: check that translational gain should be missing in this conversion
-                        'dyattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*convf, #rightward motion
+                        'dyattempt_ft': -match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*convf, 
+                        #scale by ball radius but not by translational gain to get true x,y in unity units (dm or if enforced cm), rightward motion
+                        'dxattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*convf, #forward motion
                         'angleattempt_ft': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
         entries[entry] = pd.Series(framedat).to_frame().T
 
