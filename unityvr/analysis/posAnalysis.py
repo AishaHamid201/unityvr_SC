@@ -171,7 +171,7 @@ def computeVelocities(inDf, ToFilter = True,  BoxCarWidth = 9):
     #TODO: verify that this convention works with the zero defined by the brightest side. 
 
     # Compute the world's rotational velocity
-    posDf['dangle_world']  =  np.rad2deg(np.diff( np.unwrap(np.deg2rad(posDf.angle.values)))) # in degrees
+    posDf['dangle_world']  =  np.rad2deg(np.diff( np.unwrap(np.deg2rad(posDf.angle.values)), prepend=0)) # in degrees
     posDf['vR_world']      =  posDf['dangle_world'] * (1/posDf.dt) # in degrees/second
     
     # Optionally filter the traces above
