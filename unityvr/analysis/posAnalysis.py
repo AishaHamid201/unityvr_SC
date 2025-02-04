@@ -35,8 +35,8 @@ def position(uvrDat, derive = True, rotate_by = None, plot = False, plotsave=Fal
 
     if derive:
         posDf = posDerive(posDf)
-    if computeVel:
-        posDf = computeVelocities(posDf,**computeVelocitiesKwargs)
+        if computeVel:
+            posDf = computeVelocities(posDf,**computeVelocitiesKwargs)
         
         #get flight and clipped from flightDf dataframe
         #why? 
