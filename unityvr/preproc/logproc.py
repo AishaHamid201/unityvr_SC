@@ -237,6 +237,9 @@ def objDfFromLog(dat, enforce_cm = False):
         gainVal = matchingRad[0]['translationalGain']
     else:
         gainVal = 1.0
+    if gainVal == 0:
+        warnings.warn('Translational gain is zero. Object sizes will not be modified.')
+        gainVal = 1.0
     if enforce_cm:
         convf = 10.0
     else:
@@ -268,7 +271,10 @@ def posDfFromLog(dat, posDfKey='attemptedTranslation', fictracSubject=None, igno
     if 'translationalGain' in matchingRad[0]:
         gainVal = matchingRad[0]['translationalGain']
     else:
-        gainVal = 1.0 
+        gainVal = 1.0
+    if gainVal == 0:
+        warnings.warn('Translational gain is zero. Fly remains stationary in the world.')
+        gainVal = np.inf
     if enforce_cm:
         convf = 10.0
     else:
