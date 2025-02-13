@@ -256,8 +256,9 @@ def loadAndAlignPreprocessedData(root, subdir, flies, conditions, trials, panDef
 
 def addImagingTimeToSceneArr(sceneArr, uvrDat, imgDataTime, imgMetadat, timeStr = 'volumes [s]', sceneFrameStr = 'frames', **kwargs):
     expDf = generateUnityExpDf(imgDataTime, uvrDat, imgMetadat, timeStr=timeStr, **kwargs)
+    timeSubSampled = pd.merge(sceneArr[sceneFrameStr].to_series().rename('frame').reset_index(drop=True), uvrDat.posDf[['frame', 'time']], on='frame', how = 'inner')['time']
     interpF = sp.interpolate.interp1d(expDf['time'], expDf[timeStr], fill_value='extrapolate')
-    sceneArr = sceneArr.assign_coords(time = (sceneFrameStr, interpF(uvrDat.posDf['time'])))
+    sceneArr = sceneArr.assign_coords(time = (sceneFrameStr, interpF(timeSubSampled)))
     return sceneArr
 
 # take all the unity dataframes and add imaging time to them

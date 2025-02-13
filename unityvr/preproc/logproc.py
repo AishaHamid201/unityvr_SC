@@ -342,7 +342,7 @@ def attmptDfFromLog(dat, enforce_cm = False):
                         'dyattempt_ft': -match['fictracAttempt']['x']*matchingRad[0]['ficTracBallRadius']*convf, 
                         #scale by ball radius but not by translational gain to get true x,y in unity units (dm or if enforced cm), rightward motion
                         'dxattempt_ft': match['fictracAttempt']['y']*matchingRad[0]['ficTracBallRadius']*convf, #forward motion
-                        'angleattempt_ft': np.rad2deg(match['fictracAttempt']['z'])} #convert to degrees
+                        'angleattempt_ft': (-np.rad2deg(match['fictracAttempt']['z']))%360} #convert to degrees and flip to align with unity convention
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
