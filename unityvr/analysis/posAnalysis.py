@@ -198,8 +198,9 @@ def computeVelocities(inDf, ToFilter = True,  BoxCarWidth = 9):
     if ToFilter:
         posDf['dx_ft']         =  posDf['dx_ft'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
         posDf['dy_ft']         =  posDf['dy_ft'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean()
-        posDf['dxattempt_ft']  =  posDf['dxattempt_ft'].rolling( window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
-        posDf['dyattempt_ft']  =  posDf['dyattempt_ft'].rolling (window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
+        if 'dxattempt_ft' in posDf.columns:
+            posDf['dxattempt_ft']  =  posDf['dxattempt_ft'].rolling( window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
+            posDf['dyattempt_ft']  =  posDf['dyattempt_ft'].rolling (window=BoxCarWidth, center=True, min_periods=int(np.ceil(BoxCarWidth/2)) ).apply(np.nanmean, raw=True) 
         posDf['dx_fly']         =  posDf['dx_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
         posDf['dy_fly']         =  posDf['dy_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
         posDf['vT_fly']         =  posDf['vT_fly'].rolling(window = BoxCarWidth, center = True,  min_periods=1).mean() 
