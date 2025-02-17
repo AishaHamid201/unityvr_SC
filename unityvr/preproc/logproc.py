@@ -425,7 +425,7 @@ def texDfFromLog(dat):
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
-        dtDf = lp.dtDfFromLog(dat)
+        dtDf = dtDfFromLog(dat)
         texDf = pd.concat(entries,ignore_index = True)
         texDf = pd.merge(dtDf, texDf, on=["frame", "time"], how='inner')
         texDf.time = texDf.time-texDf.time[0]
@@ -503,8 +503,6 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     try: pdDf = pdDfFromLog(dat, computePDtrace)
     except: print("No analog input data was recorded.")
 
-
-    print('pdDf time:', pdDf.time[0], 'posDf time:', posDf.time[0], 'dtDf time:', dtDf.time[0])
     if len(posDf) > 0: posDf.time = posDf.time-posDf.time[0]
     if len(dtDf) > 0: dtDf.time = dtDf.time-dtDf.time[0]
     if len(pdDf) > 0: pdDf.time = pdDf.time-pdDf.time[0]
