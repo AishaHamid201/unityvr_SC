@@ -394,6 +394,14 @@ def pdDfFromLog(dat, computePDtrace):
 
 
 def texDfFromLog(dat):
+    
+    # get texture names
+    matchingSessionParams = [s for s in dat if "sessionParameters" in s]
+    #get texture names
+    textureMatches = list(pd.Series([dict(l.split(':', 1) for l in matchingSessionParams[0]['sessionParameters']
+    )[m] for m in dict(l.split(':', 1) for l in matchingSessionParams[0]['sessionParameters']
+    ).keys() if 'Texture' in m]).replace(r"^\s*$", pd.NA, regex=True).dropna().str.split('\\').str[-1])
+
     # get texture remapping log
     matching = [s for s in dat if "xpos" in s]
     if len(matching) == 0: return pd.DataFrame()
@@ -404,18 +412,24 @@ def texDfFromLog(dat):
             framedat = {'frame': match['frame'],
                         'time': match['timeSecs'],
                         'xtex': match['xpos'],
-                        'ytex': match['ypos']}
+                        'ytex': match['ypos'],
+                        'texName': textureMatches[entry%len(textureMatches)]
+                        }
         else:
             framedat = {'frame': match['frame'],
                         'time': match['timeSecs'],
                         'xtex': match['xpos'],
-                        'ytex': 0}
+                        'ytex': 0,
+                        'texName': textureMatches[entry%len(textureMatches)]
+                        }
         entries[entry] = pd.Series(framedat).to_frame().T
 
     if len(entries) > 0:
+        dtDf = lp.dtDfFromLog(dat)
         texDf = pd.concat(entries,ignore_index = True)
+        texDf = pd.merge(dtDf, texDf, on=["frame", "time"], how='inner')
         texDf.time = texDf.time-texDf.time[0]
-        return texDf
+        return texDf[~texDf.duplicated(subset=['frame', 'texName'], keep='last')].reset_index(drop=True)
     else:
         return pd.DataFrame()
 
@@ -455,7 +469,9 @@ def tempDfFromLog(dat):
     if len(entries) > 0:
         tempDf = pd.concat(entries,ignore_index = True).groupby('frame').mean().reset_index() #average over multiple temperature readings per unity frame
         dtDf = dtDfFromLog(dat) #get the frame times
-        if len(dtDf)>0: tempDf = pd.merge(dtDf, tempDf, on="frame", how='outer')
+        if len(dtDf)>0: 
+            tempDf = pd.merge(dtDf, tempDf, on="frame", how='outer')
+            tempDf.time = tempDf.time-tempDf.time[0]
         return tempDf
     else:
         print('No temperature data was recorded.')

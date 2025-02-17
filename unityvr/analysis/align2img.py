@@ -268,6 +268,7 @@ def addImagingTimeToUvrDat(imgDataTime, uvrDat, imgMetadat, timeStr = 'volumes [
     interpF = sp.interpolate.interp1d(expDf['frame'], expDf[timeStr], fill_value='extrapolate')
     for f in  uvrDat.__dataclass_fields__:
         if dataframeAppend in f:
+            
             unityDf = getattr(uvrDat,f)
             if frameStr in unityDf:
                 unityDf[timeStr] = interpF(unityDf['frame'])
@@ -297,7 +298,7 @@ def find_upticks(signal, smoothing=3):
 
 def alignWithPdSignal(nidDf, pdThresh=0.1, pdClip = [0.04, 0.12], noFrameDropCorrection=True, supressPDAlignmentPlot = True, lims=[0,100]):
     # Drop NaNs and reset index for cleaner processing
-    nidDf = nidDf.dropna(subset=['pdFilt']).reset_index(drop=True)
+    nidDf = nidDf.dropna(subset=['pdFilt']).reset_index(drop=True).copy()
 
     #clip the photodiode signal to a reasonable range
     nidDf['pdFilt'] = np.clip(nidDf['pdFilt'], pdClip[0], pdClip[1])
