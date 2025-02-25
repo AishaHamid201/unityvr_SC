@@ -39,13 +39,19 @@ def deriveTexVals(texDf,
     texDf['behindScreen'] = np.abs(texDf['stimAngle'])>=(180-36);
     return texDf
 
-def convertTextureVals(texDf, RF=True):
+def convertTextureVals(texDf, RF=True, normType = 'first'):
     if RF: 
         #elevation was mapped
         texDf['elevation'] = np.round(1-(texDf.ytex % 1),2)
-    texDf.xtex = texDf.xtex - texDf.xtex[0]
     xtexpos = texDf.xtex.values.copy()
-    xtexpos[xtexpos<0] = 1+xtexpos[xtexpos<0]
+    if normType == 'min':
+        xtexpos = xtexpos - np.min(xtexpos)
+        xtexpos = xtexpos/np.max(xtexpos)
+
+    elif normType == 'first':
+        xtexpos = xtexpos - xtexpos[0]
+        xtexpos[xtexpos<0] = 1+xtexpos[xtexpos<0]
+    
     texDf['azimuth'] = xtexpos*360
     texDf['sweepdir'] = np.sign(texDf.xtex) #right handed convention
     return texDf
