@@ -18,7 +18,7 @@ posDfCols = ['frame','time','x','y','angle']
 ftDfCols = ['frame','ficTracTReadMs','ficTracTWriteMs','wx_ft','wy_ft','wz_ft']
 dtDfCols = ['frame','time','dt']
 tempDfCols = ['frame','tempReadTime','temperature']
-nidDfCols = ['frame','time','dt','pdsig','imgfsig']
+nidDfCols = ['frame','time','dt','pdsig','imgfsig', 'ledsig']
 texDfCols = ['frame','time','xtex','ytex']
 vidDfCols = ['frame','time','img','duration']
 attmptDfCols = ['frame','time','dxattempt_ft','dyattempt_ft','angleattempt_ft']
@@ -371,21 +371,33 @@ def pdDfFromLog(dat, computePDtrace):
     # get NiDaq signal
     matching = [s for s in dat if "imgFrameTrigger" in s]
     entries = [None]*len(matching)
+    nosig = False
     for entry, match in enumerate(matching):
         if computePDtrace:
-            framedat = {'frame': match['frame'],
-                        'time': match['timeSecs'],
-                        'pdsig': match['tracePD'],
-                        'imgfsig': match['imgFrameTrigger']}
+            try:
+                framedat = {'frame': match['frame'],
+                            'time': match['timeSecs'],
+                            'pdsig': match['tracePD'],
+                            'imgfsig': match['imgFrameTrigger'],
+                            'ledsig': match['ledTrigger']}
+            except:
+                framedat = {'frame': match['frame'],
+                            'time': match['timeSecs'],
+                            'pdsig': match['tracePD'],
+                            'imgfsig': match['imgFrameTrigger'],
+                            'ledsig': np.nan}
+                nosig = True
         else:
             framedat = {'frame': match['frame'],
                     'time': match['timeSecs'],
                     'imgfsig': match['imgFrameTrigger']}
         entries[entry] = pd.Series(framedat).to_frame().T
+    if nosig:
+        print('No LED trigger signal was recorded.')
 
     if len(entries) > 0:
         if computePDtrace:
-            pdDf = pd.concat(entries,ignore_index = True)[['frame', 'time', 'pdsig', 'imgfsig']]#.drop_duplicates()
+            pdDf = pd.concat(entries,ignore_index = True)[['frame', 'time', 'pdsig', 'imgfsig', 'ledsig']]#.drop_duplicates()
         else:
             pdDf = pd.concat(entries,ignore_index = True)[['frame', 'time','imgfsig']]#.drop_duplicates()
         return pdDf
@@ -492,7 +504,7 @@ def timeseriesDfFromLog(dat, computePDtrace=True, **posDfKeyWargs):
     dtDf = pd.DataFrame(columns=dtDfCols)
 
     if computePDtrace:
-        pdDf = pd.DataFrame(columns = ['frame','time','pdsig', 'imgfsig'])
+        pdDf = pd.DataFrame(columns = ['frame','time','pdsig', 'imgfsig', 'ledsig'])
     else:
         pdDf = pd.DataFrame(columns = ['frame','time', 'imgfsig'])
 
